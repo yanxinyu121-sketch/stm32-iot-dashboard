@@ -3,362 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>物流枢纽 | 全屏监控大屏</title>
+    <title>物流监控大屏 | 极速版</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
-        /* ========== 全局暗黑科技风 ========== */
-        :root {
-            --bg-color: #0f172a; --card-bg: rgba(30, 41, 59, 0.6);
-            --primary: #10b981; --danger: #ef4444; 
-            --text-main: #f8fafc; --text-sub: #94a3b8;
-        }
-        
-        body {
-            font-family: 'Segoe UI', sans-serif; background-color: var(--bg-color);
-            background-image: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 100%);
-            color: var(--text-main); margin: 0; min-height: 100vh;
-            /* 使用视口单位(vh/vw)撑满屏幕，留出呼吸边距 */
-            padding: 3vh 3vw; box-sizing: border-box;
-        }
-
-        /* 整个大屏的容器 */
-        .dashboard-wrapper {
-            display: flex; flex-direction: column; gap: 20px;
-            height: 100%; min-height: 90vh;
-        }
-
-        /* 统一的玻璃拟态面板样式 */
-        .panel {
-            background: var(--card-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.08); border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-        }
-
-        /* ========== 顶部标题栏 ========== */
-        .header-panel {
-            display: flex; justify-content: space-between; align-items: center;
-            padding: 20px 30px; border-top: 4px solid var(--primary);
-        }
-        .header-panel h1 { margin: 0; font-size: 1.8rem; letter-spacing: 2px; }
-        .time-display { color: var(--text-sub); font-size: 1.1rem; }
-
-        /* ========== 中间主内容区 (左右分栏) ========== */
-        .main-content {
-            display: flex; flex: 1; gap: 20px;
-        }
-        
-        /* 左侧数据大屏 (占 2 份宽度) */
-        .panel-data {
-            flex: 2; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px;
-        }
-        .data-label { font-size: 1.2rem; color: var(--text-sub); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 20px; }
-        .count-display {
-            font-size: 10rem; /* 电脑端极大的字体 */
-            font-weight: 800; color: var(--primary);
-            text-shadow: 0 0 40px rgba(16, 185, 129, 0.3); margin: 0; line-height: 1; font-variant-numeric: tabular-nums;
-        }
-
-        /* 右侧控制面板 (占 1 份宽度) */
-        .panel-control {
-            flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px;
-        }
-        .btn-group { display: flex; flex-direction: column; gap: 25px; width: 100%; max-width: 300px; }
-        .btn {
-            width: 100%; padding: 20px 0; border: none; border-radius: 12px; font-size: 1.2rem; font-weight: bold; letter-spacing: 1px;
-            cursor: pointer; transition: all 0.3s ease; color: white; display: flex; justify-content: center; align-items: center; gap: 10px;
-        }
-        .btn:active { transform: scale(0.96); }
-        .btn-start { background-color: rgba(16, 185, 129, 0.15); border: 1px solid var(--primary); color: var(--primary); }
-        .btn-start:hover { background-color: var(--primary); color: white; box-shadow: 0 0 20px rgba(16, 185, 129, 0.5); }
-        .btn-stop { background-color: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); color: var(--danger); }
-        .btn-stop:hover { background-color: var(--danger); color: white; box-shadow: 0 0 20px rgba(239, 68, 68, 0.5); }
-
-        /* ========== 底部状态栏 ========== */
-        .status-panel {
-            display: flex; justify-content: space-between; align-items: center; padding: 20px 30px; font-size: 1.1rem;
-        }
-        .status-item { display: flex; align-items: center; gap: 12px; }
-        .dot { width: 12px; height: 12px; border-radius: 50%; background-color: var(--danger); }
-        .dot.active { background-color: var(--primary); box-shadow: 0 0 12px var(--primary); animation: pulse 2s infinite; }
-        
-        @keyframes pulse {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-        }
-
-        /* =========================================================
-           手机端自适应逻辑 (当屏幕宽度小于 768px 时触发以下样式) 
-           ========================================================= */
-        @media (max-width: 768px) {
-            body { padding: 15px; }
-            .header-panel { flex-direction: column; gap: 15px; text-align: center; }
-            /* 核心：将原本左右排布(row)改成上下堆叠(column) */
-            .main-content { flex-direction: column; }
-            /* 字体缩小，防止手机端撑爆屏幕 */
-            .count-display { font-size: 5rem; }
-            .panel-data, .panel-control { padding: 30px 20px; }
-            .btn-group { max-width: 100%; }
-            .status-panel { flex-direction: column; gap: 15px; text-align: center; }
-        }
+        :root { --bg: #0f172a; --main: #10b981; --warn: #ef4444; --txt: #f8fafc; }
+        body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 20px; min-height: 100vh; box-sizing: border-box; }
+        .wrapper { display: flex; flex-direction: column; gap: 20px; height: 95vh; }
+        .panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border-radius: 15px; border: 1px solid rgba(255,255,255,0.1); padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-top: 4px solid var(--main); }
+        .main { display: flex; flex: 1; gap: 20px; }
+        .data-box { flex: 2; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .ctrl-box { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 20px; }
+        .count { font-size: 8rem; font-weight: 800; color: var(--main); text-shadow: 0 0 30px rgba(16,185,129,0.3); margin: 20px 0; }
+        .btn { padding: 20px; border: none; border-radius: 10px; font-size: 1.2rem; font-weight: bold; cursor: pointer; color: white; transition: 0.3s; }
+        .btn-on { background: rgba(16,185,129,0.2); border: 1px solid var(--main); color: var(--main); }
+        .btn-on:hover { background: var(--main); color: white; }
+        .btn-off { background: rgba(239,68,68,0.2); border: 1px solid var(--warn); color: var(--warn); }
+        .btn-off:hover { background: var(--warn); color: white; }
+        .footer { display: flex; justify-content: space-between; font-size: 0.9rem; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: grey; display: inline-block; margin-right: 5px; }
+        .active { background: var(--main); box-shadow: 0 0 10px var(--main); animation: pulse 2s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        @media (max-width: 768px) { .main { flex-direction: column; } .count { font-size: 4rem; } }
     </style>
 </head>
 <body>
-
-    <div class="dashboard-wrapper">
-        <header class="panel header-panel">
-            <h1>⚡ 物流包裹集散监控大屏</h1>
-            <div class="time-display">最后同步: <span id="last-update">--:--:--</span></div>
-        </header>
-
-        <main class="main-content">
-            <section class="panel panel-data">
-                <div class="data-label">今日总过线包裹 (件)</div>
-                <div class="count-display" id="package-count">--</div>
-            </section>
-
-            <section class="panel panel-control">
-                <div class="data-label">远程流水线控制</div>
-                <div class="btn-group">
-                    <button class="btn btn-start" onclick="sendCommand('start')">▶ 启动设备</button>
-                    <button class="btn btn-stop" onclick="sendCommand('stop')">⏹ 紧急断电</button>
-                </div>
-            </section>
-        </main>
-
-        <footer class="panel status-panel">
-            <div class="status-item">
-                <div class="dot" id="network-dot"></div>
-                <span id="network-text">云端连接中...</span>
+    <div class="wrapper">
+        <div class="panel header">
+            <h2 style="margin:0">📦 物流数据中枢 (极速版)</h2>
+            <div id="time">--:--:--</div>
+        </div>
+        <div class="main">
+            <div class="panel data-box">
+                <div style="color:#94a3b8">今日累计计件</div>
+                <div class="count" id="count">--</div>
             </div>
-            <div class="status-item">
-                <span style="color: var(--text-sub);">产线当前状态:</span>
-                <span id="system-status" style="color: var(--danger); font-weight: bold; letter-spacing: 1px;">等待同步</span>
+            <div class="panel ctrl-box">
+                <button class="btn btn-on" onclick="send('start')">▶ 开启流水线</button>
+                <button class="btn btn-off" onclick="send('stop')">⏹ 紧急停机</button>
             </div>
-        </footer>
+        </div>
+        <div class="panel footer">
+            <div><span class="dot" id="dot"></span><span id="stat">云端连接中...</span></div>
+            <div>系统状态: <span id="sys">未知</span></div>
+        </div>
     </div>
 
     <script>
-        const brokerUrl = 'wss://o61000fd.ala.cn-hangzhou.emqxsl.cn:8084/mqtt';
-        const options = {
-            clean: true, connectTimeout: 4000,
-            clientId: 'Web-UI-' + Math.random().toString(16).substr(2, 8),
-            username: 'esp01s', password: '123456',
-        };
-
-        const client = mqtt.connect(brokerUrl, options);
+        const broker = 'wss://broker.emqx.io:8084/mqtt';
+        const topic_data = 'logistics/data/yxz_888';
+        const topic_cmd = 'logistics/cmd/yxz_888';
         
-        const elCount = document.getElementById('package-count');
-        const elNetworkDot = document.getElementById('network-dot');
-        const elNetworkText = document.getElementById('network-text');
-        const elSystemStatus = document.getElementById('system-status');
-        const elLastUpdate = document.getElementById('last-update');
+        const client = mqtt.connect(broker, { clientId: 'web_' + Math.random().toString(16).substr(2, 8) });
 
-        client.on('connect', function () {
-            elNetworkDot.classList.add('active');
-            elNetworkText.innerText = '云端链路已接通';
-            elNetworkText.style.color = 'var(--primary)';
-            client.subscribe('logistics/data');
+        client.on('connect', () => {
+            document.getElementById('dot').className = 'dot active';
+            document.getElementById('stat').innerText = '云端已就绪';
+            client.subscribe(topic_data);
         });
 
-        client.on('message', function (topic, message) {
-            try {
-                const data = JSON.parse(message.toString());
-                elCount.innerText = data.count;
-                if(data.status === 'running') {
-                    elSystemStatus.innerText = '正在运行'; elSystemStatus.style.color = 'var(--primary)';
-                } else {
-                    elSystemStatus.innerText = '已停止'; elSystemStatus.style.color = 'var(--danger)';
-                }
-                elLastUpdate.innerText = new Date().toLocaleTimeString('zh-CN', { hour12: false });
-            } catch (e) { console.error(e); }
+        client.on('message', (t, m) => {
+            const d = JSON.parse(m.toString());
+            document.getElementById('count').innerText = d.count;
+            document.getElementById('sys').innerText = (d.status==='running'?'运行中':'停止');
+            document.getElementById('sys').style.color = (d.status==='running'?'#10b981':'#ef4444');
+            document.getElementById('time').innerText = new Date().toLocaleTimeString();
         });
 
-        client.on('offline', function () {
-            elNetworkDot.classList.remove('active');
-            elNetworkText.innerText = '连接已断开'; elNetworkText.style.color = 'var(--danger)';
-        });
-
-        function sendCommand(action) {
-            if (!client.connected) { alert("网络未连接！"); return; }
-            const payload = JSON.stringify({ cmd: action });
-            client.publish('logistics/cmd', payload);
-            
-            if(action === 'start') {
-                elSystemStatus.innerText = '下发指令: 启动...'; elSystemStatus.style.color = '#f59e0b';
-            } else {
-                elSystemStatus.innerText = '下发指令: 停止...'; elSystemStatus.style.color = '#f59e0b';
-            }
-        }
-    </script>
-</body>
-</html><!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>物流枢纽 | 实时监控终端</title>
-    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
-    <style>
-        /* ========== 全局与卡片样式 (保持原有暗黑科技风) ========== */
-        :root {
-            --bg-color: #0f172a; --card-bg: rgba(30, 41, 59, 0.7);
-            --primary: #10b981; --danger: #ef4444; 
-            --text-main: #f8fafc; --text-sub: #94a3b8;
-        }
-        body {
-            font-family: 'Segoe UI', sans-serif; background-color: var(--bg-color);
-            background-image: radial-gradient(circle at 50% 0%, #1e293b 0%, #0f172a 70%);
-            color: var(--text-main); margin: 0; min-height: 100vh;
-            display: flex; justify-content: center; align-items: center; padding: 20px; box-sizing: border-box;
-        }
-        .dashboard {
-            background: var(--card-bg); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 20px;
-            padding: 40px 30px; width: 100%; max-width: 480px;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); position: relative; overflow: hidden;
-        }
-        .dashboard::before {
-            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px;
-            background: linear-gradient(90deg, transparent, var(--primary), transparent);
-        }
-        .header { text-align: center; margin-bottom: 30px; }
-        .header h1 { margin: 0; font-size: 1.5rem; letter-spacing: 2px; }
-
-        /* ========== 数据显示区 ========== */
-        .data-panel { text-align: center; margin-bottom: 30px; }
-        .data-label { font-size: 0.9rem; color: var(--text-sub); letter-spacing: 1px; margin-bottom: 10px; }
-        .count-display {
-            font-size: 5rem; font-weight: 800; color: var(--primary);
-            text-shadow: 0 0 20px rgba(16, 185, 129, 0.4); line-height: 1; margin: 10px 0; font-variant-numeric: tabular-nums;
-        }
-
-        /* ========== 远程控制台 (新增) ========== */
-        .control-panel {
-            background: rgba(0, 0, 0, 0.3); padding: 20px; border-radius: 12px; margin-bottom: 30px;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-        }
-        .btn-group { display: flex; gap: 15px; margin-top: 15px; }
-        .btn {
-            flex: 1; padding: 12px 0; border: none; border-radius: 8px; font-size: 1rem; font-weight: bold;
-            cursor: pointer; transition: all 0.3s ease; color: white; display: flex; justify-content: center; align-items: center; gap: 8px;
-        }
-        .btn:active { transform: scale(0.95); }
-        .btn-start { background-color: rgba(16, 185, 129, 0.2); border: 1px solid var(--primary); color: var(--primary); }
-        .btn-start:hover { background-color: var(--primary); color: white; box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
-        .btn-stop { background-color: rgba(239, 68, 68, 0.2); border: 1px solid var(--danger); color: var(--danger); }
-        .btn-stop:hover { background-color: var(--danger); color: white; box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
-
-        /* ========== 状态指示区 ========== */
-        .status-container {
-            display: flex; justify-content: space-between; background: rgba(0, 0, 0, 0.2);
-            padding: 15px 20px; border-radius: 12px; font-size: 0.9rem;
-        }
-        .status-item { display: flex; align-items: center; gap: 8px; }
-        .dot { width: 10px; height: 10px; border-radius: 50%; background-color: var(--danger); }
-        .dot.active { background-color: var(--primary); box-shadow: 0 0 10px var(--primary); animation: pulse 2s infinite; }
-        @keyframes pulse {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
-            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
-        }
-        .footer { margin-top: 20px; text-align: center; font-size: 0.8rem; color: var(--text-sub); }
-    </style>
-</head>
-<body>
-
-    <div class="dashboard">
-        <div class="header"><h1>⚡ STM32 物流集散中枢</h1></div>
-        
-        <div class="data-panel">
-            <div class="data-label">今日实时包裹计数 (件)</div>
-            <div class="count-display" id="package-count">--</div>
-        </div>
-
-        <div class="control-panel">
-            <div class="data-label" style="margin-bottom: 0;">远程设备控制</div>
-            <div class="btn-group">
-                <button class="btn btn-start" onclick="sendCommand('start')">▶ 启动流水线</button>
-                <button class="btn btn-stop" onclick="sendCommand('stop')">⏹ 紧急停止</button>
-            </div>
-        </div>
-
-        <div class="status-container">
-            <div class="status-item">
-                <div class="dot" id="network-dot"></div><span id="network-text">连接中...</span>
-            </div>
-            <div class="status-item">
-                <span style="color: var(--text-sub);">状态:</span>
-                <span id="system-status" style="color: var(--danger); font-weight: bold;">等待同步</span>
-            </div>
-        </div>
-        <div class="footer">最后更新: <span id="last-update">--:--:--</span></div>
-    </div>
-
-    <script>
-        const brokerUrl = 'wss://o61000fd.ala.cn-hangzhou.emqxsl.cn:8084/mqtt';
-        const options = {
-            clean: true, connectTimeout: 4000,
-            clientId: 'Web-UI-' + Math.random().toString(16).substr(2, 8),
-            username: 'esp01s', password: '123456',
-        };
-
-        const client = mqtt.connect(brokerUrl, options);
-        
-        const elCount = document.getElementById('package-count');
-        const elNetworkDot = document.getElementById('network-dot');
-        const elNetworkText = document.getElementById('network-text');
-        const elSystemStatus = document.getElementById('system-status');
-        const elLastUpdate = document.getElementById('last-update');
-
-        client.on('connect', function () {
-            elNetworkDot.classList.add('active');
-            elNetworkText.innerText = '云端已连接';
-            elNetworkText.style.color = 'var(--primary)';
-            // 订阅接收数据的频道
-            client.subscribe('logistics/data');
-        });
-
-        client.on('message', function (topic, message) {
-            try {
-                const data = JSON.parse(message.toString());
-                elCount.innerText = data.count;
-                if(data.status === 'running') {
-                    elSystemStatus.innerText = '正在运行'; elSystemStatus.style.color = 'var(--primary)';
-                } else {
-                    elSystemStatus.innerText = '已停止'; elSystemStatus.style.color = 'var(--danger)';
-                }
-                elLastUpdate.innerText = new Date().toLocaleTimeString('zh-CN', { hour12: false });
-            } catch (e) { console.error(e); }
-        });
-
-        client.on('offline', function () {
-            elNetworkDot.classList.remove('active');
-            elNetworkText.innerText = '已断开'; elNetworkText.style.color = 'var(--danger)';
-        });
-
-        // ========== 新增：发送控制指令函数 ==========
-        function sendCommand(action) {
-            if (!client.connected) {
-                alert("网络未连接，无法发送指令！");
-                return;
-            }
-            
-            // 组装要发送的 JSON 指令包
-            const payload = JSON.stringify({ cmd: action });
-            
-            // 发布到 logistics/cmd 频道
-            client.publish('logistics/cmd', payload);
-            console.log("已下发控制指令:", payload);
-            
-            // 给按钮加点简单的点击反馈
-            if(action === 'start') {
-                elSystemStatus.innerText = '指令下发: 启动...';
-                elSystemStatus.style.color = '#f59e0b'; // 变黄提示正在发送
-            } else {
-                elSystemStatus.innerText = '指令下发: 停止...';
-                elSystemStatus.style.color = '#f59e0b';
-            }
+        function send(cmd) {
+            client.publish(topic_cmd, JSON.stringify({cmd: cmd}));
+            document.getElementById('sys').innerText = '指令已下发...';
         }
     </script>
 </body>
