@@ -3,76 +3,480 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>物流监控大屏 | 极速版</title>
+    <title>物流监控中枢 | Logistics Monitoring Center</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <style>
-        :root { --bg: #0f172a; --main: #10b981; --warn: #ef4444; --txt: #f8fafc; }
-        body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--txt); margin: 0; padding: 20px; min-height: 100vh; box-sizing: border-box; }
-        .wrapper { display: flex; flex-direction: column; gap: 20px; height: 95vh; }
-        .panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border-radius: 15px; border: 1px solid rgba(255,255,255,0.1); padding: 20px; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-top: 4px solid var(--main); }
-        .main { display: flex; flex: 1; gap: 20px; }
-        .data-box { flex: 2; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        .ctrl-box { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 20px; }
-        .count { font-size: 8rem; font-weight: 800; color: var(--main); text-shadow: 0 0 30px rgba(16,185,129,0.3); margin: 20px 0; }
-        .btn { padding: 20px; border: none; border-radius: 10px; font-size: 1.2rem; font-weight: bold; cursor: pointer; color: white; transition: 0.3s; }
-        .btn-on { background: rgba(16,185,129,0.2); border: 1px solid var(--main); color: var(--main); }
-        .btn-on:hover { background: var(--main); color: white; }
-        .btn-off { background: rgba(239,68,68,0.2); border: 1px solid var(--warn); color: var(--warn); }
-        .btn-off:hover { background: var(--warn); color: white; }
-        .footer { display: flex; justify-content: space-between; font-size: 0.9rem; }
-        .dot { width: 10px; height: 10px; border-radius: 50%; background: grey; display: inline-block; margin-right: 5px; }
-        .active { background: var(--main); box-shadow: 0 0 10px var(--main); animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-        @media (max-width: 768px) { .main { flex-direction: column; } .count { font-size: 4rem; } }
+        /* ========== 全局与色彩变量 ========== */
+        :root {
+            --bg-base: #0a0f1d; --bg-panel: #111827; --border-color: #1f2937;
+            --text-main: #f3f4f6; --text-sub: #9ca3af; --text-blue: #0ea5e9; --text-cyan: #06b6d4;
+            --color-green: #10b981; --color-red: #ef4444; --color-yellow: #f59e0b;
+            --color-purple: #8b5cf6; --color-blue: #3b82f6;
+            --glass-bg: rgba(17, 24, 39, 0.8);
+        }
+
+        body, html { margin: 0; padding: 0; height: 100%; font-family: 'Segoe UI', sans-serif; background-color: var(--bg-base); color: var(--text-main); overflow: hidden; }
+        * { box-sizing: border-box; }
+
+        /* ========== 1. 登录墙样式 ========== */
+        .login-page { position: fixed; inset: 0; z-index: 9999; display: flex; justify-content: center; align-items: center; background: #0a0f1d; transition: all 0.5s ease; }
+        .login-card { background: var(--glass-bg); border: 1px solid var(--border-color); border-radius: 16px; padding: 40px; width: 360px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .login-card input { width: 100%; padding: 12px; margin: 10px 0 20px; border-radius: 8px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); color: white; outline: none; }
+        .login-card button { width: 100%; padding: 12px; border-radius: 8px; border: none; background: var(--color-blue); color: white; font-weight: bold; cursor: pointer; }
+        .fade-out { opacity: 0; pointer-events: none; transform: scale(1.05); }
+
+        /* ========== 2. 主大屏布局 ========== */
+        #dashboard-screen { display: none; padding: 20px; height: 100%; flex-direction: column; gap: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; }
+        .header h1 { margin: 0; font-size: 24px; color: var(--text-blue); letter-spacing: 2px; }
+        .history-btn { background: transparent; border: 1px solid var(--border-color); color: var(--text-sub); padding: 8px 16px; border-radius: 20px; cursor: pointer; transition: 0.3s; }
+        .history-btn:hover { border-color: var(--text-cyan); color: var(--text-cyan); }
+
+        .main-grid { display: grid; grid-template-columns: 250px 1fr 300px; grid-template-rows: auto 1fr; gap: 20px; height: calc(100% - 60px); }
+        .panel { background: var(--bg-panel); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; position: relative; }
+        .panel-title { font-size: 14px; color: var(--text-main); margin-bottom: 15px; font-weight: bold; }
+
+        /* 左侧边栏 */
+        .status-list { display: flex; flex-direction: column; gap: 15px; }
+        .status-item { display: flex; align-items: center; gap: 15px; padding: 10px; background: rgba(255,255,255,0.02); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); }
+        .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--text-sub); }
+        .dot.green { background: var(--color-green); box-shadow: 0 0 10px var(--color-green); }
+        .dot.red { background: var(--color-red); box-shadow: 0 0 10px var(--color-red); }
+        .dot.yellow { background: var(--color-yellow); box-shadow: 0 0 10px var(--color-yellow); }
+        .slider-container { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; }
+        input[type=range][orient=vertical] { appearance: slider-vertical; width: 8px; height: 150px; }
+
+        /* 中间核心区 */
+        .center-top { display: flex; flex-direction: column; justify-content: space-between; }
+        .stats-row { display: flex; justify-content: space-around; align-items: center; margin-top: 10px; }
+        .stat-box { text-align: center; }
+        .stat-label { color: var(--text-sub); font-size: 14px; margin-bottom: 5px; }
+        .stat-value { font-size: 64px; font-weight: bold; line-height: 1; }
+        .val-real { color: var(--color-green); text-shadow: 0 0 30px rgba(16,185,129,0.3); }
+        .val-target { color: var(--color-blue); text-shadow: 0 0 30px rgba(14,165,233,0.3); cursor: pointer; }
+        .progress-container { margin-top: 30px; }
+        .progress-bar { background: rgba(255,255,255,0.1); height: 12px; border-radius: 6px; overflow: hidden; }
+        .progress-fill { background: linear-gradient(90deg, #059669, #34d399); height: 100%; width: 0%; transition: width 0.5s ease; }
+        
+        /* 右侧控制区 */
+        .control-panel { display: flex; flex-direction: column; gap: 15px; }
+        .ctrl-btn { flex: 1; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; color: white; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.3s; }
+        .ctrl-btn:hover { opacity: 0.9; transform: translateY(-2px); }
+        .btn-stop { background: var(--color-red); }
+        .btn-start { background: var(--border-color); }
+        .btn-sleep { background: var(--color-purple); }
+
+        /* ========== 3. 目标设置弹窗 ========== */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); z-index: 1000; justify-content: center; align-items: center; }
+        .target-content { background: var(--bg-panel); border: 1px solid var(--color-blue); border-radius: 16px; padding: 30px; width: 350px; }
+        .target-content input { width: 100%; padding: 12px; background: #0a0f1d; border: 1px solid var(--border-color); color: white; border-radius: 8px; margin: 15px 0; outline: none; }
+        .modal-btns button { padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; color: white; }
+        .btn-confirm { background: linear-gradient(90deg, #0ea5e9, #2563eb); }
+
+        /* ========== 4. 历史数据巨型弹窗 (完美还原) ========== */
+        .history-content { background: #0f172a; border: 1px solid #1e293b; border-radius: 16px; width: 850px; height: 600px; display: flex; flex-direction: column; position: relative; padding: 25px; box-shadow: 0 25px 50px rgba(0,0,0,0.8); }
+        
+        /* 头部与切换器 */
+        .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .history-header h2 { margin: 0; color: var(--text-cyan); font-size: 20px; }
+        .toggle-group { display: flex; background: #1e293b; border-radius: 8px; padding: 3px; border: 1px solid #334155; }
+        .toggle-btn { background: transparent; border: none; color: var(--text-sub); padding: 6px 15px; border-radius: 6px; cursor: pointer; transition: 0.3s; font-size: 13px; }
+        .toggle-btn.active { background: var(--text-cyan); color: #fff; }
+        .close-btn { background: transparent; border: none; color: var(--text-sub); font-size: 24px; cursor: pointer; }
+        .close-btn:hover { color: white; }
+
+        /* 视图容器 */
+        .view-container { flex: 1; display: flex; flex-direction: column; }
+        #chart-view { display: flex; flex-direction: column; height: 100%; }
+        #table-view { display: none; flex-direction: column; height: 100%; }
+
+        /* 数据汇总卡片区 */
+        .metrics-row { display: flex; gap: 15px; margin-top: 15px; margin-bottom: 20px; }
+        .metric-card { flex: 1; background: rgba(255,255,255,0.02); border: 1px solid #1e293b; border-radius: 10px; padding: 15px; display: flex; flex-direction: column; justify-content: center; }
+        .metric-label { font-size: 12px; color: var(--text-sub); margin-bottom: 5px; display: flex; align-items: center; gap: 5px; }
+        .metric-val { font-size: 24px; font-weight: bold; color: white; }
+
+        /* 表格样式 */
+        .table-wrapper { flex: 1; overflow-y: auto; margin-bottom: 10px; border: 1px solid #1e293b; border-radius: 10px; }
+        table { width: 100%; border-collapse: collapse; text-align: center; }
+        th { position: sticky; top: 0; background: #1e293b; color: var(--text-sub); font-size: 13px; padding: 12px; font-weight: normal; border-bottom: 1px solid #334155; }
+        td { padding: 12px; font-size: 14px; border-bottom: 1px solid #1e293b; }
+        tr:hover { background: rgba(255,255,255,0.02); }
+        .val-good { color: var(--color-green); }
+        .val-bad { color: var(--color-red); }
+        .val-warn { color: var(--color-yellow); }
+        .val-target-text { color: var(--text-blue); font-weight: bold; }
+
+        /* 导出按钮 */
+        .export-row { text-align: center; margin-top: auto; }
+        .btn-export { background: linear-gradient(90deg, #06b6d4, #3b82f6); border: none; color: white; padding: 12px 30px; border-radius: 8px; font-size: 14px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .btn-export:hover { box-shadow: 0 0 15px rgba(6, 182, 212, 0.4); }
+
+        /* 自定义滚动条 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
     </style>
 </head>
 <body>
-    <div class="wrapper">
-        <div class="panel header">
-            <h2 style="margin:0">📦 物流数据中枢 (极速版)</h2>
-            <div id="time">--:--:--</div>
+
+    <div id="login-screen" class="login-page">
+        <div class="login-card">
+            <h2 style="color:var(--text-blue);">物流系统控制台</h2>
+            <div style="color:var(--text-sub); font-size:12px; margin-bottom:30px;">Logistics Control System</div>
+            <input type="text" id="username" placeholder="账号" value="admin">
+            <input type="password" id="password" placeholder="密码" value="123456">
+            <button onclick="checkLogin()">进入系统 →</button>
         </div>
-        <div class="main">
-            <div class="panel data-box">
-                <div style="color:#94a3b8">今日累计计件</div>
-                <div class="count" id="count">--</div>
+    </div>
+
+    <div id="dashboard-screen">
+        <div class="header">
+            <div><h1>物流监控中枢</h1></div>
+            <button class="history-btn" onclick="openHistoryModal()">↺ 查看历史数据</button>
+        </div>
+
+        <div class="main-grid">
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                <div class="panel">
+                    <div class="panel-title">系统状态</div>
+                    <div class="status-list">
+                        <div class="status-item"><div class="dot" id="dot-cloud"></div><div>云端服务<br><span id="txt-cloud" style="font-size:12px;color:var(--text-sub)">连接中</span></div></div>
+                        <div class="status-item"><div class="dot" id="dot-mcu"></div><div>单片机<br><span id="txt-mcu" style="font-size:12px;color:var(--text-sub)">等待数据</span></div></div>
+                        <div class="status-item"><div class="dot" id="dot-line"></div><div>流水线<br><span id="txt-line" style="font-size:12px;color:var(--text-sub)">未知</span></div></div>
+                    </div>
+                </div>
+                <div class="panel" style="flex:1;">
+                    <div class="panel-title">速度调节</div>
+                    <div class="slider-container">
+                        <span style="font-size:12px; color:var(--text-sub);">快速</span>
+                        <input type="range" id="speed-slider" orient="vertical" min="0" max="100" value="100" onchange="setSpeed(this.value)">
+                        <span style="font-size:12px; color:var(--text-sub); margin-top:5px;">慢速</span>
+                        <h3 id="speed-val" style="margin:10px 0 0 0;">100%</h3>
+                    </div>
+                </div>
             </div>
-            <div class="panel ctrl-box">
-                <button class="btn btn-on" onclick="send('start')">▶ 开启流水线</button>
-                <button class="btn btn-off" onclick="send('stop')">⏹ 紧急停机</button>
+
+            <div style="display: flex; flex-direction: column; gap: 20px;">
+                <div class="panel center-top">
+                    <div class="panel-title" style="justify-content:center;">📦 包裹统计</div>
+                    <div class="stats-row">
+                        <div class="stat-box">
+                            <div class="stat-label">实时数量</div>
+                            <div class="stat-value val-real" id="count-real">0</div>
+                        </div>
+                        <div class="stat-box" onclick="document.getElementById('target-modal').style.display='flex'">
+                            <div class="stat-label">目标数量 ✎</div>
+                            <div class="stat-value val-target" id="count-target">25000</div>
+                        </div>
+                    </div>
+                    <div class="progress-container">
+                        <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-sub); margin-bottom:5px;">
+                            <span>完成进度</span><span id="progress-txt">0.0%</span>
+                        </div>
+                        <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+                    </div>
+                </div>
+                <div class="panel" style="flex:1;">
+                    <div class="panel-title">实时流量监控</div>
+                    <div id="mini-chart" style="width: 100%; height: 80%;"></div>
+                </div>
+            </div>
+
+            <div class="panel control-panel">
+                <div class="panel-title">系统控制</div>
+                <button class="ctrl-btn btn-stop" onclick="sendCmd('stop')">紧急停止</button>
+                <button class="ctrl-btn btn-start" id="btn-start" onclick="sendCmd('start')">启动运行</button>
+                <button class="ctrl-btn btn-sleep" id="btn-sleep" onclick="sendCmd('toggle_sleep')">
+                    <span id="txt-sleep">系统休眠</span>
+                </button>
             </div>
         </div>
-        <div class="panel footer">
-            <div><span class="dot" id="dot"></span><span id="stat">云端连接中...</span></div>
-            <div>系统状态: <span id="sys">未知</span></div>
+    </div>
+
+    <div id="target-modal" class="modal-overlay">
+        <div class="target-content">
+            <h3 style="color:var(--text-blue); margin-top:0;">◎ 设置目标数量</h3>
+            <input type="number" id="target-input" value="25000">
+            <div class="modal-btns" style="display:flex; gap:10px;">
+                <button style="flex:1; background:var(--border-color);" onclick="document.getElementById('target-modal').style.display='none'">取消</button>
+                <button style="flex:1;" class="btn-confirm" onclick="saveTarget()">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="history-modal" class="modal-overlay">
+        <div class="history-content">
+            <div class="history-header">
+                <h2>历史数据分析</h2>
+                <div class="toggle-group">
+                    <button class="toggle-btn active" id="btn-chart" onclick="switchHistoryView('chart')">📊 图表</button>
+                    <button class="toggle-btn" id="btn-table" onclick="switchHistoryView('table')">🪟 表格</button>
+                </div>
+                <button class="close-btn" onclick="closeHistoryModal()">&times;</button>
+            </div>
+
+            <div id="chart-view" class="view-container">
+                <div id="history-echart" style="flex:1; width:100%;"></div>
+                <div class="metrics-row">
+                    <div class="metric-card"><div class="metric-label">◎ 平均完成率</div><div class="metric-val">87.3%</div></div>
+                    <div class="metric-card"><div class="metric-label">📦 总处理量</div><div class="metric-val">122,547</div></div>
+                    <div class="metric-card"><div class="metric-label">📈 日均增长</div><div class="metric-val" style="color:var(--text-cyan);">+12.5%</div></div>
+                </div>
+                <div class="export-row"><button class="btn-export" onclick="exportToWord()">📥 导出Word表格</button></div>
+            </div>
+
+            <div id="table-view" class="view-container">
+                <div class="table-wrapper" id="history-table-container">
+                    <table id="data-table">
+                        <thead>
+                            <tr><th>日期</th><th>实际包裹数</th><th>目标包裹数</th><th>完成率</th><th>差距</th></tr>
+                        </thead>
+                        <tbody id="table-body">
+                            </tbody>
+                    </table>
+                </div>
+                <div class="metrics-row">
+                    <div class="metric-card"><div class="metric-label">📦 平均日处理量</div><div class="metric-val">16,868</div></div>
+                    <div class="metric-card"><div class="metric-label">📈 峰值处理量</div><div class="metric-val">19,082</div></div>
+                    <div class="metric-card"><div class="metric-label">◎ 达标天数</div><div class="metric-val">0 / 7</div></div>
+                    <div class="metric-card"><div class="metric-label">! 总差距</div><div class="metric-val val-bad">-21,926</div></div>
+                </div>
+                <div class="export-row"><button class="btn-export" onclick="exportToWord()">📥 导出Word表格</button></div>
+            </div>
         </div>
     </div>
 
     <script>
-        const broker = 'wss://broker.emqx.io:8084/mqtt';
-        const topic_data = 'logistics/data/yxz_888';
-        const topic_cmd = 'logistics/cmd/yxz_888';
-        
-        const client = mqtt.connect(broker, { clientId: 'web_' + Math.random().toString(16).substr(2, 8) });
+        // ========== 1. 登录与主页逻辑 ==========
+        function checkLogin() {
+            if(document.getElementById('password').value === "123456") {
+                document.getElementById('login-screen').classList.add('fade-out');
+                setTimeout(() => {
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('dashboard-screen').style.display = 'flex';
+                    initSystem(); 
+                }, 500);
+            } else { alert("密码错误"); }
+        }
 
-        client.on('connect', () => {
-            document.getElementById('dot').className = 'dot active';
-            document.getElementById('stat').innerText = '云端已就绪';
-            client.subscribe(topic_data);
-        });
+        let client, miniChart, historyChart;
+        let miniChartData = Array(20).fill(0); 
+        let currentTarget = 25000;
+        let systemState = 'stopped';
 
-        client.on('message', (t, m) => {
-            const d = JSON.parse(m.toString());
-            document.getElementById('count').innerText = d.count;
-            document.getElementById('sys').innerText = (d.status==='running'?'运行中':'停止');
-            document.getElementById('sys').style.color = (d.status==='running'?'#10b981':'#ef4444');
-            document.getElementById('time').innerText = new Date().toLocaleTimeString();
-        });
+        // 历史硬编码数据 (完美还原你的截图)
+        const historyData = [
+            { date: '3月9日', actual: 16695, target: 20000 },
+            { date: '3月10日', actual: 18023, target: 20000 },
+            { date: '3月11日', actual: 15831, target: 20000 },
+            { date: '3月12日', actual: 19082, target: 20000 },
+            { date: '3月13日', actual: 15286, target: 20000 },
+            { date: '3月14日', actual: 15334, target: 20000 },
+            { date: '3月15日', actual: 17823, target: 20000 }
+        ];
 
-        function send(cmd) {
-            client.publish(topic_cmd, JSON.stringify({cmd: cmd}));
-            document.getElementById('sys').innerText = '指令已下发...';
+        function initSystem() {
+            initMiniChart();
+            initMQTT();
+        }
+
+        function initMiniChart() {
+            miniChart = echarts.init(document.getElementById('mini-chart'));
+            miniChart.setOption({
+                grid: { top: 10, bottom: 20, left: 30, right: 10 },
+                xAxis: { type: 'category', show: false },
+                yAxis: { type: 'value', splitLine: { show: false }, axisLabel: { color: '#9ca3af' } },
+                series: [{ data: miniChartData, type: 'line', smooth: true, symbol: 'none', lineStyle: { color: '#10b981', width: 2 }, areaStyle: { color: 'rgba(16,185,129,0.1)' } }]
+            });
+            window.addEventListener('resize', () => miniChart.resize());
+        }
+
+        // ========== 2. MQTT 通信逻辑 ==========
+        function initMQTT() {
+            client = mqtt.connect('wss://broker.emqx.io:8084/mqtt', { clientId: 'Web-' + Math.random().toString(16).substr(2, 8) });
+            client.on('connect', () => {
+                document.getElementById('dot-cloud').className = 'dot green';
+                document.getElementById('txt-cloud').innerText = '在线';
+                document.getElementById('txt-cloud').style.color = 'var(--color-green)';
+                client.subscribe('logistics/data/yxz_888');
+            });
+            client.on('message', (topic, message) => {
+                try {
+                    const d = JSON.parse(message.toString());
+                    if(d.count !== undefined) {
+                        document.getElementById('count-real').innerText = d.count;
+                        updateProgress(d.count, currentTarget);
+                        miniChartData.shift(); miniChartData.push(d.count % 200 + 50); 
+                        miniChart.setOption({ series: [{ data: miniChartData }] });
+                    }
+                    document.getElementById('dot-mcu').className = 'dot green';
+                    document.getElementById('txt-mcu').innerText = '在线';
+                    document.getElementById('txt-mcu').style.color = 'var(--color-green)';
+                    if(d.status) updateUIState(d.status);
+                } catch (e) { console.error(e); }
+            });
+        }
+
+        function updateUIState(state) {
+            systemState = state;
+            const dotLine = document.getElementById('dot-line');
+            const txtLine = document.getElementById('txt-line');
+            const btnStart = document.getElementById('btn-start');
+            const btnSleep = document.getElementById('btn-sleep');
+
+            btnStart.style.background = 'var(--border-color)';
+            btnSleep.style.background = 'var(--color-purple)';
+            document.getElementById('txt-sleep').innerText = "系统休眠";
+
+            if(state === 'running') {
+                dotLine.className = 'dot green'; txtLine.innerText = '运行中'; txtLine.style.color = 'var(--color-green)';
+                btnStart.style.background = 'var(--color-green)'; 
+            } else if(state === 'stopped') {
+                dotLine.className = 'dot yellow'; txtLine.innerText = '已停止'; txtLine.style.color = 'var(--color-yellow)';
+            } else if(state === 'sleep') {
+                dotLine.className = 'dot yellow'; txtLine.innerText = '待机'; txtLine.style.color = 'var(--color-yellow)';
+                btnSleep.style.background = 'var(--color-yellow)';
+                document.getElementById('txt-sleep').innerText = "唤醒系统";
+            }
+        }
+
+        window.sendCmd = function(action) {
+            if(!client || !client.connected) return alert("云端未连接");
+            if(action === 'toggle_sleep') action = (systemState === 'sleep') ? 'wake' : 'sleep';
+            client.publish('logistics/cmd/yxz_888', JSON.stringify({ cmd: action }));
+            if(action === 'stop') updateUIState('stopped');
+            if(action === 'start') updateUIState('running');
+            if(action === 'sleep') updateUIState('sleep');
+        }
+
+        window.saveTarget = () => {
+            const val = document.getElementById('target-input').value;
+            currentTarget = val;
+            document.getElementById('count-target').innerText = Number(val).toLocaleString(); 
+            updateProgress(document.getElementById('count-real').innerText, currentTarget);
+            document.getElementById('target-modal').style.display='none';
+        };
+
+        function updateProgress(real, target) {
+            let percent = (real / target * 100).toFixed(1);
+            if(percent > 100) percent = 100;
+            document.getElementById('progress-txt').innerText = percent + '%';
+            document.getElementById('progress-fill').style.width = percent + '%';
+        }
+
+        // ========== 3. 历史数据巨型弹窗逻辑 ==========
+        function openHistoryModal() {
+            document.getElementById('history-modal').style.display = 'flex';
+            renderTable();
+            // 延迟一点初始化图表，确保容器已经显示，否则 ECharts 会渲染成 0 宽度
+            setTimeout(() => {
+                if(!historyChart) {
+                    historyChart = echarts.init(document.getElementById('history-echart'));
+                }
+                historyChart.setOption({
+                    tooltip: { trigger: 'axis' },
+                    grid: { top: 20, bottom: 20, left: 50, right: 20 },
+                    xAxis: { type: 'category', data: historyData.map(d => d.date), axisLine: { lineStyle: { color: '#334155' } }, axisLabel: { color: '#0ea5e9' } },
+                    yAxis: { type: 'value', min: 0, max: 20000, splitLine: { lineStyle: { color: '#1e293b', type: 'dashed' } }, axisLabel: { color: '#9ca3af' } },
+                    series: [{
+                        data: historyData.map(d => d.actual), type: 'line', smooth: true, 
+                        symbol: 'circle', symbolSize: 8,
+                        lineStyle: { color: '#06b6d4', width: 2 },
+                        itemStyle: { color: '#06b6d4', borderColor: '#fff', borderWidth: 2 }
+                    }]
+                });
+                historyChart.resize();
+            }, 100);
+        }
+
+        function closeHistoryModal() {
+            document.getElementById('history-modal').style.display = 'none';
+        }
+
+        function switchHistoryView(view) {
+            document.getElementById('btn-chart').classList.remove('active');
+            document.getElementById('btn-table').classList.remove('active');
+            document.getElementById('chart-view').style.display = 'none';
+            document.getElementById('table-view').style.display = 'none';
+
+            if(view === 'chart') {
+                document.getElementById('btn-chart').classList.add('active');
+                document.getElementById('chart-view').style.display = 'flex';
+                if(historyChart) historyChart.resize();
+            } else {
+                document.getElementById('btn-table').classList.add('active');
+                document.getElementById('table-view').style.display = 'flex';
+            }
+        }
+
+        // 动态渲染表格数据
+        function renderTable() {
+            const tbody = document.getElementById('table-body');
+            tbody.innerHTML = '';
+            historyData.forEach(row => {
+                const rate = ((row.actual / row.target) * 100).toFixed(1) + '%';
+                const diff = row.actual - row.target;
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="color:#f3f4f6">${row.date}</td>
+                    <td class="val-good" style="font-weight:bold">${row.actual.toLocaleString()}</td>
+                    <td class="val-target-text">${row.target.toLocaleString()}</td>
+                    <td class="val-warn">${rate}</td>
+                    <td class="val-bad">${diff.toLocaleString()}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ========== 4. 核心黑科技：导出 Word ==========
+        function exportToWord() {
+            // 获取表格的 HTML 结构
+            const tableHtml = document.getElementById('data-table').outerHTML;
+            
+            // 组装成一个简单的 Word 兼容 HTML 文档
+            const html = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                <head>
+                    <meta charset='utf-8'>
+                    <title>物流历史数据报表</title>
+                    <style>
+                        table { width: 100%; border-collapse: collapse; text-align: center; font-family: 'Microsoft YaHei', sans-serif; }
+                        th, td { border: 1px solid #666; padding: 10px; }
+                        th { background-color: #f2f2f2; color: #333; font-weight: bold; }
+                        td { color: #333; }
+                    </style>
+                </head>
+                <body>
+                    <h2 style="text-align:center; color:#333; font-family:'Microsoft YaHei'">物流历史数据报表 (由系统自动生成)</h2>
+                    ${tableHtml}
+                </body>
+                </html>
+            `;
+
+            // 将 HTML 转换为 Blob (模拟成 .doc 文件)
+            const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
+            const url = URL.createObjectURL(blob);
+            
+            // 创建一个隐藏的 a 标签并触发下载
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = '物流历史数据分析报表.doc'; // 自动生成的文件名
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            // 给用户一个小提示
+            const btn = event.target;
+            const originalText = btn.innerText;
+            btn.innerText = "✅ 导出成功！";
+            btn.style.background = "#10b981";
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.style.background = "linear-gradient(90deg, #06b6d4, #3b82f6)";
+            }, 2000);
         }
     </script>
 </body>
